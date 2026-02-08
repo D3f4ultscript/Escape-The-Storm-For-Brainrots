@@ -120,12 +120,12 @@ async def on_ready():
 @bot.slash_command(name="ingamelb", description="Show in-game leaderboard (Money or Speed)")
 async def ingamelb(ctx, kind: discord.Option(str, "Choose leaderboard", choices=["Money", "Speed"])):
     if not user_is_allowed(ctx.author):
-        await ctx.respond("Du hast keine Berechtigung für diesen Befehl.", ephemeral=True)
+        await ctx.respond("You do not have permission to use this command.", ephemeral=True)
         return
     board = load_board()
     entries = board.get(kind, [])
     if not entries:
-        await ctx.respond(f"Keine Einträge für {kind}.")
+        await ctx.respond(f"No entries for {kind}.")
         return
     lines = []
     for i, e in enumerate(entries[:50]):
