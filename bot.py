@@ -84,10 +84,29 @@ async def start_web():
         entries = payload.get("entries")
         if not kind or not isinstance(entries, list):
             return web.json_response({"error": "missing kind or entries"}, status=400)
-        entries = [ {"name": e.get("name"), "value": e.get("value")} for e in entries if e.get("name") ]
-        entries.sort(key=lambda x: x.get("value", 0), reverse=True)
+        entries = [{"name": e.get("name"), "value": e.get("value")} for e in entries if e.get("name")]
         board = load_board()
-        board[kind] = entries
+        existing = board.get(kind, [])
+        merged = {}
+        for e in existing:
+            n = e.get("name")
+            if n:
+                merged[n] = e.get("value", 0)
+        for e in entries:
+            n = e.get("name")
+            v = e.get("value", 0)
+            if not n:
+                continue
+            if n in merged:
+                try:
+                    merged[n] = max(merged[n], v)
+                except Exception:
+                    merged[n] = v
+            else:
+                merged[n] = v
+        merged_list = [{"name": n, "value": merged[n]} for n in merged]
+        merged_list.sort(key=lambda x: x.get("value", 0), reverse=True)
+        board[kind] = merged_list
         save_board(board)
         return web.json_response({"status": "ok"})
 
