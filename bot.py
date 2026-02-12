@@ -135,6 +135,10 @@ async def on_ready():
     if not getattr(bot, "_web_started", False):
         asyncio.create_task(start_web())
         bot._web_started = True
+    try:
+        await bot.user.edit(description="#1")
+    except Exception:
+        pass
 
 
 @bot.slash_command(name="ingamelb", description="Show in-game leaderboard (Money or Speed)")
