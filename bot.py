@@ -52,16 +52,16 @@ def save_setup(data):
 
 def create_leaderboard_embed(kind: str, entries: list) -> discord.Embed:
     if not entries:
-        embed = discord.Embed(title=f"{kind} Leaderboard", description="Keine Einträge vorhanden")
+        embed = discord.Embed(title=f"{kind} Leaderboard", description="No entries yet")
         return embed
     
     lines = []
     for i, e in enumerate(entries[:50]):
-        name = e.get("name", "Unbekannt")
+        name = e.get("name", "Unknown")
         value = e.get("value", "-")
         lines.append(f"{i+1}. {name} — {value}")
     
-    text = "\n".join(lines) if lines else "Keine Einträge vorhanden"
+    text = "\n".join(lines) if lines else "No entries yet"
     embed = discord.Embed(title=f"{kind} Leaderboard", description=text)
     return embed
 
@@ -185,7 +185,7 @@ async def leaderboard_update_loop():
                     embed = create_leaderboard_embed(kind, entries)
                     await msg.edit(embed=embed)
                 except Exception as e:
-                    print(f"Fehler beim Update von {kind}: {e}")
+                    print(f"Error updating {kind}: {e}")
         except Exception as e:
             print(f"Leaderboard Update Loop Error: {e}")
 
@@ -219,7 +219,7 @@ async def ingamelb(ctx, kind: discord.Option(str, "Choose leaderboard", choices=
 @bot.slash_command(name="setuplb", description="Setup leaderboards in this channel")
 async def setuplb(ctx):
     if not user_is_allowed(ctx.author):
-        await ctx.respond("Du hast keine Berechtigung für diesen Befehl.", ephemeral=True)
+        await ctx.respond("You do not have permission to use this command.", ephemeral=True)
         return
     
     await ctx.defer()
@@ -237,7 +237,7 @@ async def setuplb(ctx):
         setup["message_ids"][kind] = msg.id
     
     save_setup(setup)
-    await ctx.followup.send("Leaderboards wurden eingerichtet und aktualisieren sich alle 10 Minuten!", ephemeral=True)
+    await ctx.followup.send("Leaderboards have been set up! They will update every 10 minutes.", ephemeral=True)
 
 
 if __name__ == "__main__":
