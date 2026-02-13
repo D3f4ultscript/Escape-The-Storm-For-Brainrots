@@ -19,7 +19,9 @@ except Exception:
 bot = discord.Bot(intents=intents, application_id=app_id)
 
 LB_FILE = "leaderboard.json"
+LB_SETUP_FILE = "leaderboard_setup.json"
 PORT = int(os.getenv("PORT", "8080"))
+LEADERBOARD_UPDATE_TASK = None
 
 
 def load_board():
@@ -33,6 +35,35 @@ def load_board():
 def save_board(data):
     with open(LB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_setup():
+    try:
+        with open(LB_SETUP_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"channel_id": None, "message_ids": {}}
+
+
+def save_setup(data):
+    with open(LB_SETUP_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def create_leaderboard_embed(kind: str, entries: list) -> discord.Embed:
+    if not entries:
+        embed = discord.Embed(title=f"{kind} Leaderboard", description="Keine Einträge vorhanden")
+        return embed
+    
+    lines = []
+    for i, e in enumerate(entries[:50]):
+        name = e.get("name", "Unbekannt")
+        value = e.get("value", "-")
+        lines.append(f"{i+1}. {name} — {value}")
+    
+    text = "\n".join(lines) if lines else "Keine Einträge vorhanden"
+    embed = discord.Embed(title=f"{kind} Leaderboard", description=text)
+    return embed
 
 
 def user_is_allowed(member: discord.Member) -> bool:
@@ -129,12 +160,46 @@ async def start_web():
     print(f"HTTP API listening on port {PORT}")
 
 
+async def leaderboard_update_loop():
+    await bot.wait_until_ready()
+    while True:
+        try:
+            await asyncio.sleep(600)
+            setup = load_setup()
+            channel_id = setup.get("channel_id")
+            message_ids = setup.get("message_ids", {})
+            
+            if not channel_id:
+                continue
+            
+            channel = bot.get_channel(channel_id)
+            if not channel:
+                continue
+            
+            board = load_board()
+            
+            for kind, msg_id in message_ids.items():
+                try:
+                    msg = await channel.fetch_message(msg_id)
+                    entries = board.get(kind, [])
+                    embed = create_leaderboard_embed(kind, entries)
+                    await msg.edit(embed=embed)
+                except Exception as e:
+                    print(f"Fehler beim Update von {kind}: {e}")
+        except Exception as e:
+            print(f"Leaderboard Update Loop Error: {e}")
+
+
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
     if not getattr(bot, "_web_started", False):
         asyncio.create_task(start_web())
         bot._web_started = True
+    
+    global LEADERBOARD_UPDATE_TASK
+    if LEADERBOARD_UPDATE_TASK is None or LEADERBOARD_UPDATE_TASK.done():
+        LEADERBOARD_UPDATE_TASK = asyncio.create_task(leaderboard_update_loop())
 
 
 @bot.slash_command(name="ingamelb", description="Show in-game leaderboard (Money or Speed)")
@@ -147,14 +212,32 @@ async def ingamelb(ctx, kind: discord.Option(str, "Choose leaderboard", choices=
     if not entries:
         await ctx.respond(f"No entries for {kind}.")
         return
-    lines = []
-    for i, e in enumerate(entries[:50]):
-        name = e.get("name", "Unbekannt")
-        value = e.get("value", "-")
-        lines.append(f"{i+1}. {name} — {value}")
-    text = "\n".join(lines)
-    embed = discord.Embed(title=f"{kind} Leaderboard", description=text)
+    embed = create_leaderboard_embed(kind, entries)
     await ctx.respond(embed=embed)
+
+
+@bot.slash_command(name="setuplb", description="Setup leaderboards in this channel")
+async def setuplb(ctx):
+    if not user_is_allowed(ctx.author):
+        await ctx.respond("Du hast keine Berechtigung für diesen Befehl.", ephemeral=True)
+        return
+    
+    await ctx.defer()
+    
+    board = load_board()
+    setup = load_setup()
+    
+    setup["channel_id"] = ctx.channel.id
+    setup["message_ids"] = {}
+    
+    for kind in board.keys():
+        entries = board.get(kind, [])
+        embed = create_leaderboard_embed(kind, entries)
+        msg = await ctx.channel.send(embed=embed)
+        setup["message_ids"][kind] = msg.id
+    
+    save_setup(setup)
+    await ctx.followup.send("Leaderboards wurden eingerichtet und aktualisieren sich alle 10 Minuten!", ephemeral=True)
 
 
 if __name__ == "__main__":
